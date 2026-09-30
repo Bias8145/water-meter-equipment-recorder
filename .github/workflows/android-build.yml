@@ -26,6 +26,13 @@ jobs:
         api-level: 34
         build-tools-version: 34.0.0
         ndk-version: 25.2.9519653
+        # Don't try to install tools package - install components explicitly instead
+    
+    - name: Install Android SDK Build Tools
+      run: |
+        $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "build-tools;34.0.0"
+        $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platforms;android-34"
+        $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platform-tools"
     
     - name: Accept Android licenses
       run: |
