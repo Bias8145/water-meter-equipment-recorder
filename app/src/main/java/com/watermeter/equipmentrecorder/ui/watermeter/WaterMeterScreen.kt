@@ -71,32 +71,102 @@ fun WaterMeterScreen(
                     .padding(bottom = 8.dp)
             )
 
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(100.dp)
-            ) {
-                items(uiState.checkpoints) { checkpoint ->
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(4.dp)
-                            .clickable {
-                                viewModel.selectCheckpoint(checkpoint.id)
-                            },
-                        shape = RoundedCornerShape(4.dp),
-                        backgroundColor = if (uiState.selectedCheckpointId == checkpoint.id) {
-                            MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
-                        } else {
-                            MaterialTheme.colorScheme.surface
+            // Loading state for checkpoints
+            if (uiState.isLoadingCheckpoints && uiState.checkpoints.isEmpty()) {
+                // Show loading indicator
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(100.dp)
+                        .align(Alignment.Center)
+                ) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+            } 
+            // Error state for checkpoints
+            else if (uiState.checkpointError != null && uiState.checkpoints.isEmpty()) {
+                // Show error with retry
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp)
+                        .align(Alignment.Center),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = "Gagal memuat checkpoint",
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodyLarge
+                    )
+                    Text(
+                        text = uiState.checkpointError,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Button(
+                        onClick = {
+                            // Retry loading checkpoints
+                            viewModel.selectCheckpoint(viewModel.uiState.value.selectedCheckpointId ?: 0)
                         }
                     ) {
-                        Text(
-                            text = checkpoint.name,
+                        Text("Coba Lagi")
+                    }
+                }
+            }
+            // Empty state for checkpoints
+            else if (uiState.checkpoints.isEmpty()) {
+                // Show empty state
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(24.dp)
+                        .align(Alignment.Center),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = "Tidak ada checkpoint tersedia",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = "Silakan tambah checkpoint melalui pengaturan",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+            // Normal state - show checkpoints
+            else {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(100.dp)
+                ) {
+                    items(uiState.checkpoints) { checkpoint ->
+                        Card(
                             modifier = Modifier
-                                .padding(12.dp)
                                 .fillMaxWidth()
-                        )
+                                .padding(4.dp)
+                                .clickable {
+                                    viewModel.selectCheckpoint(checkpoint.id)
+                                },
+                            shape = RoundedCornerShape(4.dp),
+                            backgroundColor = if (uiState.selectedCheckpointId == checkpoint.id) {
+                                MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
+                            } else {
+                                MaterialTheme.colorScheme.surface
+                            }
+                        ) {
+                            Text(
+                                text = checkpoint.name,
+                                modifier = Modifier
+                                    .padding(12.dp)
+                                    .fillMaxWidth()
+                            )
+                        }
                     }
                 }
             }
@@ -118,96 +188,146 @@ fun WaterMeterScreen(
                                 .padding(bottom = 8.dp)
                         )
 
-                        // Previous reading
-                        val previousReading = uiState.previousReading
-                        Text(
-                            text = "Previous Reading: ${if (previousReading != null) previousReading.toString() else "Belum ada"}",
-                            style = MaterialTheme.typography.bodyMedium,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(bottom = 8.dp)
-                        )
-
-                        // Current reading input
-                        OutlinedTextField(
-                            value = TextFieldValue(uiState.currentReading),
-                            onValueChange = { viewModel.updateCurrentReading(it.text) },
-                            label = { Text("Current Reading") },
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            isError = uiState.saveError != null && !uiState.saveError.isNullOrBlank(),
-                            errorText = { if (uiState.saveError != null) Text(uiState.saveError) else null },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(bottom = 12.dp)
-                        )
-
-                        // Usage calculation
-                        val usage = uiState.usage
-                        when {
-                            usage == null -> {
+                        // Loading state for previous reading
+                        if (uiState.isLoadingPrevious && uiState.previousReading == null) {
+                            // Show loading indicator for previous reading
+                            Text(
+                                text = "Memuat pembacaan sebelumnya...",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(bottom = 8.dp)
+                            )
+                        }
+                        // Error state for previous reading
+                        else if (uiState.previousError != null && uiState.previousReading == null) {
+                            // Show error with retry for previous reading
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
                                 Text(
-                                    text = "Usage: Tidak dapat dihitung (tidak ada previous reading)",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(bottom = 8.dp)
-                                )
-                            }
-                            usage!! < 0 -> {
-                                Text(
-                                    text = "Usage: ${usage} (PERINGATAN: Pengurangan meter!)",
-                                    style = MaterialTheme.typography.bodyMedium,
+                                    text = "Gagal memuat pembacaan sebelumnya",
                                     color = MaterialTheme.colorScheme.error,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(bottom = 8.dp)
+                                    style = MaterialTheme.typography.bodyMedium
                                 )
-                            }
-                            else -> {
                                 Text(
-                                    text = "Usage: ${usage}",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(bottom = 8.dp)
+                                    text = uiState.previousError,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    style = MaterialTheme.typography.bodySmall
                                 )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Button(
+                                    onClick = {
+                                        // Retry loading previous reading
+                                        viewModel.selectCheckpoint(uiState.selectedCheckpointId ?: 0)
+                                    }
+                                ) {
+                                    Text("Coba Lagi")
+                                }
                             }
                         }
+                        // Normal state - show previous reading
+                        else {
+                            // Previous reading
+                            val previousReading = uiState.previousReading
+                            Text(
+                                text = "Previous Reading: ${if (previousReading != null) previousReading.toString() else "Belum ada"}",
+                                style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(bottom = 8.dp)
+                            )
 
-                        // Save button
-                        Button(
-                            onClick = {
-                                if (uiState.currentReading.isNotBlank() && uiState.selectedCheckpointId != null) {
-                                    viewModel.saveReading()
+                            // Current reading input
+                            OutlinedTextField(
+                                value = TextFieldValue(uiState.currentReading),
+                                onValueChange = { viewModel.updateCurrentReading(it.text) },
+                                label = { Text("Current Reading") },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                isError = uiState.saveError != null && !uiState.saveError.isNullOrBlank(),
+                                errorText = { if (uiState.saveError != null) Text(uiState.saveError) else null },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(bottom = 12.dp)
+                            )
+
+                            // Usage calculation
+                            val usage = uiState.usage
+                            when {
+                                usage == null -> {
+                                    Text(
+                                        text = "Usage: Tidak dapat dihitung (tidak ada previous reading)",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(bottom = 8.dp)
+                                    )
                                 }
-                            },
-                            enabled = uiState.currentReading.isNotBlank() && uiState.selectedCheckpointId != null && !uiState.isSaving,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                        ) {
-                            if (uiState.isSaving) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(24.dp),
-                                    strokeWidth = 2.dp
-                                )
-                            } else {
-                                Text("Simpan")
+                                usage!! < 0 -> {
+                                    Text(
+                                        text = "Usage: ${usage} (PERINGATAN: Pengurangan meter!)",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.error,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(bottom = 8.dp)
+                                    )
+                                }
+                                else -> {
+                                    Text(
+                                        text = "Usage: ${usage}",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(bottom = 8.dp)
+                                    )
+                                }
+                            }
+
+                            // Save button
+                            Button(
+                                onClick = {
+                                    if (uiState.currentReading.isNotBlank() && uiState.selectedCheckpointId != null) {
+                                        viewModel.saveReading()
+                                    }
+                                },
+                                enabled = uiState.currentReading.isNotBlank() && uiState.selectedCheckpointId != null && !uiState.isSaving,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                            ) {
+                                if (uiState.isSaving) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(24.dp),
+                                        strokeWidth = 2.dp
+                                    )
+                                } else if (uiState.saveSuccess) {
+                                    // Show success checkmark
+                                    Icon(
+                                        imageVector = Icons.Default.Check,
+                                        contentDescription = "Berhasil",
+                                        tint = MaterialTheme.colorScheme.success,
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                } else {
+                                    Text("Simpan")
+                                }
                             }
                         }
                     }
                 }
-            }
 
-            // Show error if any (outside of the card)
-            if (uiState.saveError != null && uiState.saveError.isNotBlank() && !uiState.isSaving) {
-                Text(
-                    text = uiState.saveError,
-                    color = MaterialTheme.colorScheme.error,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 8.dp)
-                )
+                // Show error if any (outside of the card)
+                if (uiState.saveError != null && uiState.saveError.isNotBlank() && !uiState.isSaving) {
+                    Text(
+                        text = uiState.saveError,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 8.dp)
+                    )
+                }
             }
         }
     }

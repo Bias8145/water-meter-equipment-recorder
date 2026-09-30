@@ -11,5 +11,7 @@ interface PhotoEvidenceDao {
     fun getPhotoEvidenceById(photoId: Long): Flow<PhotoEvidence?>
 
     @Insert
+    @Update
+    suspend fun updatePhotoEvidence(photo: PhotoEvidence): Int
     suspend fun insertPhotoEvidence(photo: PhotoEvidence): Long
 }

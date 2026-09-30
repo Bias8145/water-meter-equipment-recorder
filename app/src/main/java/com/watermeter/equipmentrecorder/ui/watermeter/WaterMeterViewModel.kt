@@ -20,16 +20,45 @@ class WaterMeterViewModel(
     init {
         // Load checkpoints for the template
         viewModelScope.launch {
-            repository.getCheckpointsByTemplateId(templateId)
-                .collect { checkpoints ->
-                    _uiState.update { it.copy(checkpoints = checkpoints) }
-                }
+            try {
+                repository.getCheckpointsByTemplateId(templateId)
+                    .collect { checkpoints ->
+                        _uiState.update { it.copy(
+                            checkpoints = checkpoints,
+                            isLoadingCheckpoints = false
+                        ) }
+                    }
+            } catch (e: Exception) {
+                _uiState.update { it.copy(
+                    checkpointError = "Failed to load checkpoints: ${e.message}",
+                    isLoadingCheckpoints = false
+                ) }
+            }
         }
     }
 
     // Select a checkpoint
     fun selectCheckpoint(checkpointId: Long) {
         _uiState.update { it.copy(selectedCheckpointId = checkpointId) }
+        // Load previous reading when checkpoint is selected
+        if (checkpointId != null) {
+            viewModelScope.launch {
+                try {
+                    val latestReading = repository.getLatestReadingByCheckpointId(checkpointId)
+                        .firstOrNull() // Get the latest or null if none
+                    
+                    _uiState.update { it.copy(
+                        previousReading = latestReading?.currentReading,
+                        isLoadingPrevious = false
+                    ) }
+                } catch (e: Exception) {
+                    _uiState.update { it.copy(
+                        previousError = "Failed to load previous reading: ${e.message}",
+                        isLoadingPrevious = false
+                    ) }
+                }
+            }
+        }
     }
 
     // Update current reading input
@@ -100,14 +129,20 @@ class WaterMeterViewModel(
 
                 val readingId = repository.saveReading(readingToSave)
 
-                // Reset input after successful save
+                // Reset input after successful save and show success
                 _uiState.update { it.copy(
                     isSaving = false,
                     currentReading = "",
-                    saveError = null
+                    saveError = null,
+                    saveSuccess = true
                 )}
+                
+                // Reset success flag after short delay (for UI feedback)
+                viewModelScope.launch {
+                    kotlinx.coroutines.delay(2000) // 2 seconds
+                    _uiState.update { it.copy(saveSuccess = false) }
+                }
 
-                // TODO: Show success message (e.g., Snackbar)
             } catch (e: Exception) {
                 _uiState.update { it.copy(
                     isSaving = false,
@@ -124,7 +159,12 @@ class WaterMeterViewModel(
         val previousReading: Long? = null,
         val usage: Long? = null,
         val isSaving: Boolean = false,
-        val saveError: String? = null
+        val saveError: String? = null,
+        val saveSuccess: Boolean = false,
+        val isLoadingCheckpoints: Boolean = true,
+        val checkpointError: String? = null,
+        val isLoadingPrevious: Boolean = false,
+        val previousError: String? = null
     )
 
     // Factory for creating the ViewModel
